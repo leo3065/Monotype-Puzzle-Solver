@@ -59,6 +59,8 @@ matrix(Ts1,Ts2,TR,Filter) :-
     Ts1).
 matrix(Ts1,Ts2,TR) :- matrix(Ts1,Ts2,TR,[]).
 
+count_solutions(Filter,Count) :-
+    aggregate_all(count, matrix(_,_,_,Filter), Count).
 write_solution(Filename,Filter) :-
    open(Filename,write, Stream),
    (matrix(T1,T2,_,Filter),
