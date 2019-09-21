@@ -1,0 +1,69 @@
+:- use_module(library(csv)).
+
+row_process(Original,Processed) :-
+    Original=..[pokemon_raw,ID,S_is_legend,S_is_mega,Name,S_type1,S_type2|_],
+    (S_is_legend = 'True' -> Is_legend = 1; Is_legend = 0),
+    (S_is_mega = 'True' -> Is_mega = 1; Is_mega = 0),
+    string_lower(S_type1, S_type1_low),
+    string_lower(S_type2, S_type2_low),
+    atom_string(Type1,S_type1_low),
+    atom_string(Type2,S_type2_low),
+    Processed=..[pokemon,ID,Is_legend,Is_mega,Name,Type1,Type2].
+
+:- File = 'pokemon.csv',
+    csv_read_file(File, Rows,
+        [functor(pokemon_raw),
+        encoding(utf8),
+        skip_header(#)]),
+    maplist(row_process, Rows, Rows_new),
+    maplist(assert, Rows_new).
+
+type_all_list([bug, dark, dragon, electric, fairy, fighting,
+               fire, flying, ghost, grass, ground, ice, normal,
+               poison, psychic, rock, steel, water]).
+
+legendary(Name,Q) :- pokemon(_,Q,_,Name,_,_).
+legendary(Name) :- legendary(Name,1).
+not_legendary(Name) :- legendary(Name,0).
+mega(Name,Q) :- pokemon(_,_,Q,Name,_,_).
+mega(Name) :- mega(Name,1).
+not_mega(Name) :- mega(Name,0).
+not_rotom(Name) :- \+ sub_atom(Name, _, _, _,'Rotom').
+
+:- table types/4, types/3.
+types(Name,T1,T2,0) :- pokemon(_,_,_,Name,T1,T2).
+types(Name,T1,T2,1) :- types(Name,T2,T1,0).
+types(Name,T1,T2) :- types(Name,T1,T2,_).
+
+:- table avalible_types/2, avalible_types/3.
+avalible_types(T1,T2,Filter) :-
+    types(M,T1,T2),
+    maplist(
+        {M}/[H]>>call(H,M),
+    Filter).
+avalible_types(T1,T2) :- types(_,T1,T2).
+
+set_part([], [], []).
+set_part([X|ST], [X|S1T], S2) :- set_part(ST, S1T, S2).
+set_part([X|ST], S1, [X|S2T]) :- set_part(ST, S1, S2T).
+
+matrix(Ts1,Ts2,TR,Filter) :-
+    type_all_list(Ts),
+    length(Ts1, 6), length(Ts2, 6),
+    set_part(Ts,Ts1,Tsr),
+    set_part(Tsr,Ts2,TR),
+    maplist(
+        {Ts2,Filter}/[T1]>>maplist(
+            {T1,Filter}/[T2]>>avalible_types(T1,T2,Filter),
+        Ts2),
+    Ts1).
+matrix(Ts1,Ts2,TR) :- matrix(Ts1,Ts2,TR,[]).
+
+write_solution(Filename,Filter) :-
+   open(Filename,write, Stream),
+   (matrix(T1,T2,_,Filter),
+        write(Stream, T1), write(Stream, ' / '), writeln(Stream, T2),
+        fail
+       ;true
+   ),
+   close(Stream).
